@@ -364,7 +364,10 @@
   </section>
 
   <section class="card summary-card">
-    <h2>Today so far</h2>
+    <div class="list-head">
+      <h2>Today so far</h2>
+      <button class="undo-btn" id="exportBtn">Export data</button>
+    </div>
     <div class="summary-grid">
       <div class="summary-item"><div class="val" id="sumTotal">0</div><div class="lbl">total entries</div></div>
       <div class="summary-item"><div class="val" id="sumGap">—</div><div class="lbl">longest gap between entries</div></div>
@@ -616,6 +619,31 @@
     entries = entries.filter(function (e) { return e.id !== lastId; });
     save();
     render();
+  });
+
+  $('exportBtn').addEventListener('click', function () {
+    var all = entries.slice().sort(function (a, b) { return a.ts - b.ts; });
+    var rows = all.map(function (e) {
+      return {
+        time: new Date(e.ts).toISOString(),
+        local: new Date(e.ts).toLocaleString(),
+        type: e.type,
+        tag: e.tag
+      };
+    });
+    var text = JSON.stringify({ app: 'Eating Entry Tally', exported: new Date().toISOString(), entries: rows }, null, 2);
+    var btn = $('exportBtn');
+    function flash(msg) {
+      btn.textContent = msg;
+      setTimeout(function () { btn.textContent = 'Export data'; }, 2000);
+    }
+    if (navigator.share) {
+      navigator.share({ title: 'Eating Entry Tally data', text: text }).catch(function () {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { flash('Copied!'); }, function () { flash('Copy failed'); });
+    } else {
+      window.prompt('Copy your data:', text);
+    }
   });
 
   // live "since last" counter + midnight rollover
