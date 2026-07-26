@@ -204,6 +204,13 @@
     font-size: 12px;
     font-weight: 500;
   }
+  .entry-source {
+    color: var(--ink-soft);
+    border: 1px solid var(--green-line);
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 12px;
+  }
   .entry-cont {
     margin-left: auto;
     font-size: 12px;
@@ -312,11 +319,40 @@
     margin-top: 4px;
     opacity: 0.75;
   }
+  .sheet-sublabel {
+    font-size: 12px;
+    color: var(--ink-soft);
+    text-align: center;
+    margin-top: 18px;
+    letter-spacing: 0.2px;
+  }
+  .source-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 8px;
+  }
+  .source-btn {
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 11px 6px;
+    border-radius: 999px;
+    border: 1.5px solid var(--green-line);
+    background: var(--card);
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .source-btn.selected {
+    background: var(--green);
+    border-color: var(--green);
+    color: #fff;
+  }
   .tag-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
     gap: 10px;
-    margin-top: 18px;
+    margin-top: 8px;
   }
   .tag-btn {
     font-family: inherit;
@@ -403,6 +439,9 @@
     <div class="sheet">
       <h3>What kind of food?</h3>
       <div class="sub">Just the category — that’s all.</div>
+      <div class="sheet-sublabel">Who prepared it (optional)</div>
+      <div class="source-row" id="sourceRow"></div>
+      <div class="sheet-sublabel">Category</div>
       <div class="tag-grid" id="tagGrid"></div>
       <button class="sheet-cancel" data-cancel>Cancel</button>
     </div>
@@ -415,9 +454,11 @@
   var STORE_KEY = 'eet-entries-v1';
   var PAUSE_MIN = 20;
   var TAGS = ['protein', 'drink', 'snack', 'dairy', 'veg', 'fruit', 'sweet', 'carb', 'meat'];
+  var SOURCES = ['home', 'out', 'package'];
 
   var entries = load();
-  var pendingType = null; // 'new' | 'continuation' while sheet flow is open
+  var pendingType = null;   // 'new' | 'continuation' while sheet flow is open
+  var pendingSource = null; // 'home' | 'out' | 'package' | null (not recorded)
 
   function load() {
     try {
@@ -541,6 +582,12 @@
       tag.className = 'entry-tag';
       tag.textContent = e.tag;
       li.appendChild(tag);
+      if (e.source) {
+        var src = document.createElement('span');
+        src.className = 'entry-source';
+        src.textContent = e.source;
+        li.appendChild(src);
+      }
       if (e.type === 'continuation') {
         var c = document.createElement('span');
         c.className = 'entry-cont';
@@ -576,6 +623,10 @@
     $('sheetType').classList.remove('open');
     $('sheetTag').classList.remove('open');
     pendingType = null;
+    pendingSource = null;
+    Array.prototype.forEach.call(document.querySelectorAll('.source-btn'), function (b) {
+      b.classList.remove('selected');
+    });
   }
 
   $('addBtn').addEventListener('click', function () {
@@ -599,13 +650,29 @@
     openSheet('sheetTag');
   });
 
+  var sourceRow = $('sourceRow');
+  SOURCES.forEach(function (src) {
+    var b = document.createElement('button');
+    b.className = 'source-btn';
+    b.textContent = src;
+    b.addEventListener('click', function () {
+      var already = pendingSource === src;
+      Array.prototype.forEach.call(sourceRow.children, function (c) { c.classList.remove('selected'); });
+      pendingSource = already ? null : src;
+      if (!already) b.classList.add('selected');
+    });
+    sourceRow.appendChild(b);
+  });
+
   var tagGrid = $('tagGrid');
   TAGS.forEach(function (tag) {
     var b = document.createElement('button');
     b.className = 'tag-btn';
     b.textContent = tag;
     b.addEventListener('click', function () {
-      entries.push({ id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), ts: Date.now(), type: pendingType, tag: tag });
+      var entry = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), ts: Date.now(), type: pendingType, tag: tag };
+      if (pendingSource) entry.source = pendingSource;
+      entries.push(entry);
       save();
       closeSheets();
       render();
@@ -638,7 +705,8 @@
         time: new Date(e.ts).toISOString(),
         local: new Date(e.ts).toLocaleString(),
         type: e.type,
-        tag: e.tag
+        tag: e.tag,
+        source: e.source || null
       };
     });
     var text = JSON.stringify({ app: 'Eating Entry Tally', exported: new Date().toISOString(), entries: rows }, null, 2);
