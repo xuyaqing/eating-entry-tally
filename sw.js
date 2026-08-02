@@ -1,4 +1,4 @@
-var CACHE = 'eet-v5';
+var CACHE = 'eet-v6';
 var ASSETS = [
   './',
   './index.html',

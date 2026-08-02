@@ -248,6 +248,7 @@
     margin-top: 2px;
     line-height: 1.3;
   }
+  .summary-item.wide { grid-column: span 2; }
   .data-row {
     display: flex;
     gap: 10px;
@@ -319,6 +320,24 @@
     margin-top: 4px;
     opacity: 0.75;
   }
+  .fullness-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 10px;
+    margin-top: 18px;
+  }
+  .fullness-btn {
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 600;
+    padding: 20px 6px;
+    border-radius: 14px;
+    border: 2px solid var(--green-line);
+    background: var(--card);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .fullness-btn:active { background: var(--green-soft); transform: scale(0.98); }
   .sheet-sublabel {
     font-size: 12px;
     color: var(--ink-soft);
@@ -415,6 +434,7 @@
       <div class="summary-item"><div class="val" id="sumGap">—</div><div class="lbl">longest gap between entries</div></div>
       <div class="summary-item"><div class="val" id="sumClose">0</div><div class="lbl">entries within 20 min of the previous one</div></div>
       <div class="summary-item"><div class="val" id="sumPattern">—</div><div class="lbl">main time pattern</div></div>
+      <div class="summary-item wide"><div class="val" id="sumFull">—</div><div class="lbl">started while full</div></div>
     </div>
     <div class="data-row">
       <button class="undo-btn" id="exportBtn">Export data</button>
@@ -434,7 +454,17 @@
     </div>
   </div>
 
-  <!-- Step 2: category tag -->
+  <!-- Step 2 (new entries only): body check -->
+  <div class="sheet-backdrop" id="sheetFull">
+    <div class="sheet">
+      <h3>Before you start — how does your body feel?</h3>
+      <div class="sub">Just noticing. There’s no wrong answer.</div>
+      <div class="fullness-row" id="fullnessRow"></div>
+      <button class="sheet-cancel" data-cancel>Cancel</button>
+    </div>
+  </div>
+
+  <!-- Step 3: category tag -->
   <div class="sheet-backdrop" id="sheetTag">
     <div class="sheet">
       <h3>What kind of food?</h3>
@@ -456,10 +486,12 @@
   var TAGS = ['protein', 'drink', 'snack', 'dairy', 'veg', 'fruit', 'sweet', 'carb', 'meat'];
   var SOURCES = ['home', 'out', 'package'];
   var DEFAULT_SOURCE = 'home';
+  var FULLNESS = ['hungry', 'neutral', 'full'];
 
   var entries = load();
   var pendingType = null;              // 'new' | 'continuation' while sheet flow is open
   var pendingSource = DEFAULT_SOURCE;  // 'home' | 'out' | 'package'
+  var pendingFullness = null;          // 'hungry' | 'neutral' | 'full' — no default, on purpose
 
   function load() {
     try {
@@ -616,14 +648,21 @@
       $('sumClose').textContent = 0;
     }
     $('sumPattern').textContent = newOnes.length ? timePattern(newOnes) : '—';
+
+    // Only counts entries that actually carry a body check.
+    var checked = newOnes.filter(function (e) { return e.fullness; });
+    var fullStarts = checked.filter(function (e) { return e.fullness === 'full'; });
+    $('sumFull').textContent = checked.length ? fullStarts.length + ' of ' + checked.length : '—';
   }
 
   // ---------- sheet flow ----------
   function openSheet(id) { $(id).classList.add('open'); }
   function closeSheets() {
     $('sheetType').classList.remove('open');
+    $('sheetFull').classList.remove('open');
     $('sheetTag').classList.remove('open');
     pendingType = null;
+    pendingFullness = null;
     resetSource();
   }
 
@@ -638,12 +677,13 @@
     if (todayEntries().length === 0) {
       // First entry of the day can only be a new episode.
       pendingType = 'new';
-      openSheet('sheetTag');
+      openSheet('sheetFull');
     } else {
       openSheet('sheetType');
     }
   });
 
+  // Continuations skip the body check — you're mid-round, the question is noise there.
   $('btnContinuation').addEventListener('click', function () {
     pendingType = 'continuation';
     $('sheetType').classList.remove('open');
@@ -652,7 +692,21 @@
   $('btnNew').addEventListener('click', function () {
     pendingType = 'new';
     $('sheetType').classList.remove('open');
-    openSheet('sheetTag');
+    openSheet('sheetFull');
+  });
+
+  var fullnessRow = $('fullnessRow');
+  FULLNESS.forEach(function (level) {
+    var b = document.createElement('button');
+    b.className = 'fullness-btn';
+    b.textContent = level;
+    // Recorded silently — the app never reacts to the answer.
+    b.addEventListener('click', function () {
+      pendingFullness = level;
+      $('sheetFull').classList.remove('open');
+      openSheet('sheetTag');
+    });
+    fullnessRow.appendChild(b);
   });
 
   var sourceRow = $('sourceRow');
@@ -676,6 +730,7 @@
     b.addEventListener('click', function () {
       var entry = { id: Date.now() + '-' + Math.random().toString(36).slice(2, 7), ts: Date.now(), type: pendingType, tag: tag };
       if (pendingSource) entry.source = pendingSource;
+      if (pendingFullness) entry.fullness = pendingFullness;
       entries.push(entry);
       save();
       closeSheets();
@@ -710,7 +765,8 @@
         local: new Date(e.ts).toLocaleString(),
         type: e.type,
         tag: e.tag,
-        source: e.source || null
+        source: e.source || null,
+        fullness: e.fullness || null
       };
     });
     var text = JSON.stringify({ app: 'Eating Entry Tally', exported: new Date().toISOString(), entries: rows }, null, 2);
