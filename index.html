@@ -439,7 +439,7 @@
     <div class="sheet">
       <h3>What kind of food?</h3>
       <div class="sub">Just the category — that’s all.</div>
-      <div class="sheet-sublabel">Who prepared it (optional)</div>
+      <div class="sheet-sublabel">Who prepared it</div>
       <div class="source-row" id="sourceRow"></div>
       <div class="sheet-sublabel">Category</div>
       <div class="tag-grid" id="tagGrid"></div>
@@ -455,10 +455,11 @@
   var PAUSE_MIN = 20;
   var TAGS = ['protein', 'drink', 'snack', 'dairy', 'veg', 'fruit', 'sweet', 'carb', 'meat'];
   var SOURCES = ['home', 'out', 'package'];
+  var DEFAULT_SOURCE = 'home';
 
   var entries = load();
-  var pendingType = null;   // 'new' | 'continuation' while sheet flow is open
-  var pendingSource = null; // 'home' | 'out' | 'package' | null (not recorded)
+  var pendingType = null;              // 'new' | 'continuation' while sheet flow is open
+  var pendingSource = DEFAULT_SOURCE;  // 'home' | 'out' | 'package'
 
   function load() {
     try {
@@ -623,9 +624,13 @@
     $('sheetType').classList.remove('open');
     $('sheetTag').classList.remove('open');
     pendingType = null;
-    pendingSource = null;
+    resetSource();
+  }
+
+  function resetSource() {
+    pendingSource = DEFAULT_SOURCE;
     Array.prototype.forEach.call(document.querySelectorAll('.source-btn'), function (b) {
-      b.classList.remove('selected');
+      b.classList.toggle('selected', b.textContent === DEFAULT_SOURCE);
     });
   }
 
@@ -653,13 +658,12 @@
   var sourceRow = $('sourceRow');
   SOURCES.forEach(function (src) {
     var b = document.createElement('button');
-    b.className = 'source-btn';
+    b.className = 'source-btn' + (src === DEFAULT_SOURCE ? ' selected' : '');
     b.textContent = src;
     b.addEventListener('click', function () {
-      var already = pendingSource === src;
       Array.prototype.forEach.call(sourceRow.children, function (c) { c.classList.remove('selected'); });
-      pendingSource = already ? null : src;
-      if (!already) b.classList.add('selected');
+      pendingSource = src;
+      b.classList.add('selected');
     });
     sourceRow.appendChild(b);
   });
